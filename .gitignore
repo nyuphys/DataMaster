@@ -139,6 +139,9 @@ ENV/
 # Rope project settings
 .ropeproject
 
+# Adobe
+*.ai
+
 # LaTeX
 *.tex
 *.fls
@@ -146,5 +149,8 @@ ENV/
 *.fdb_latexmk
 *.pdf
 *.aux
-
-assets/
+/manual/*
+!/manual/manual.pdf
+!/manual/manual.tex
+!/manual/references.bib
+!/manual/assets/*

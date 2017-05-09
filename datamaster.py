@@ -77,7 +77,12 @@ def load_lab(name):
 
     try:
         obj = __import__(name)
-        current_labs[name] = obj
+
+        if not hasattr(obj, 'lab'):
+            print('__init__ file not properly configured.')
+            obj = None
+        else:
+            current_labs[name] = obj
     except Exception as err:
         print('Lab analysis could not be loaded')
         print(str(err))
