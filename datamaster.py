@@ -12,6 +12,7 @@
 
 import signal
 import sys
+import gc
 import getopt
 import os
 
@@ -24,7 +25,7 @@ LABS         = []   # List of all known labs given by subdirectories
 current_labs = {}   # Key-value memory of active labs
 selected_lab = None # Name of current selected lab; used for reloads
 
-VERSION      = '1.0.0' # Current version of DataMaster
+VERSION      = '1.1.0' # Current version of DataMaster
 
 def fetch_lab(name, load):
     '''
@@ -98,6 +99,14 @@ def unload_lab(name):
 
     Removes all references of a lab from memory
     '''
+
+    # Firstly, if the object has terminate(), call it; useful for freeing memory
+    obj = current_labs[name]
+
+    if hasattr(obj.lab, 'terminate') and callable(getattr(obj.lab, 'terminate')):
+        getattr(obj.lab, 'terminate')()
+
+    # Now, purge references
     rm = []
 
     global selected_lab
@@ -111,14 +120,18 @@ def unload_lab(name):
             rm.append(mod)
 
     for i in rm:
+        sys.modules[i] = None
         del sys.modules[i]
 
     # Redundant checks in case reference is broken
     if name in sys.modules:
+        sys.modules[name] = None
         del sys.modules[name]
 
     if name in current_labs:
         del current_labs[name]
+
+    gc.collect()
 
 def select_lab(name, load=False):
     lab = fetch_lab(name, load)
@@ -170,6 +183,25 @@ def get_var(var):
         print('No selected lab')
         usage()
 
+def run_func(var):
+    if selected_lab is not None:
+        obj = current_labs[selected_lab]
+
+        if str(var) == 'all': # Are you sure about that?
+
+            for e in dir(obj.lab):
+                if e.startswith('run_') and callable(getattr(obj.lab, str(e))):
+                    getattr(obj.lab, str(e))()
+            return
+
+        try:
+            getattr(obj.lab, ('run_%s' % (var)))()
+        except Exception as err:
+            print(str(err))
+    else:
+        print('No selected lab')
+        usage()
+
 def list():
     print('Available labs:')
 
@@ -184,14 +216,17 @@ def list():
 
         gets  = []
         plots = []
+        runs  = []
 
         for e in dir(obj.lab):
             if e.startswith('get_') and callable(getattr(obj.lab, str(e))):
                 gets.append(str(e).replace('get_', ''))
             elif e.startswith('plot_') and callable(getattr(obj.lab, str(e))):
                 plots.append(str(e).replace('plot_', ''))
+            elif e.startswith('run_') and callable(getattr(obj.lab, str(e))):
+                runs.append(str(e).replace('run_', ''))
 
-        if len(gets) != 0 or len(plots) != 0:
+        if len(gets) != 0 or len(plots) != 0 or len(runs) != 0:
             print('----------------------------------')
             print('Functions for \'%s\'' % (selected_lab))
 
@@ -207,6 +242,12 @@ def list():
                 for p in plots:
                     print ('  * %s' % (p))
 
+            if len(runs) != 0:
+                print('Runnables:')
+
+                for r in runs:
+                    print ('  * %s' % (r))
+
 def current_version():
     print('DataMaster version %s' % VERSION)
 
@@ -217,8 +258,9 @@ def usage():
     print('  -l, --list: Lists all the available labs and, if a lab is selected, all available gets and plots')
     print('  -s, --select <name>: Selects lab to compute data from')
     print('  -r, --reload: Reloads the selected lab from file')
-    print('  -p, --plot <variable>: Calls a plotting function of form \"plot_<variable>\"')
-    print('  -g, --get <variable>: Prints out a value from function of form \"get_<variable>\"')
+    print('  -p, --plot <variable>: Calls a plotting function of the form \"plot_<variable>\"')
+    print('  -g, --get <variable>: Prints out a value from function of the form \"get_<variable>\"')
+    print('  -x, --run <variable>: Runs a custom function of the form \"run_<variable>\"')
     print('  -e, --exit: Explicit command to exit from DataMaster CLI')
 
 def cli():
@@ -246,7 +288,7 @@ def exit_handle(sig, frame):
 
 def handle_args(args):
     try:
-        opts, args = getopt.getopt(args, 'hlvs:rp:g:e', ['help', 'list', 'version', 'reload', 'select=', 'plot=', 'get=', 'exit'])
+        opts, args = getopt.getopt(args, 'hlvs:rp:g:x:e', ['help', 'list', 'version', 'reload', 'select=', 'plot=', 'get=', 'run=', 'exit'])
     except getopt.GetoptError as err:
         print(str(err))
         usage()
@@ -284,6 +326,9 @@ def handle_args(args):
         elif opt in ('-g', '--get'):
             get_var(arg)
 
+        elif opt in ('-x', '--run'):
+            run_func(arg)
+
         elif opt in ('-e', '--exit'):
             print('\nExiting...')
             sys.exit(0)
@@ -293,6 +338,7 @@ def handle_args(args):
 
     if plotting:
         plt.show()
+        plt.close('all')
 
 def main(argv):
     # Load in lab names

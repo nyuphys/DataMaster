@@ -75,7 +75,7 @@
 
 Most of the analysis codework that you do in the start of your undergraduate career -- if any -- ultimately comes down to simple tasks that you can do on your own. However, physics is a cooperative science and so is its data analysis. Eventually you will come to find that the analysis work for labs outweighs the time spent in the lab itself, which means that you may be spending many hours staring at some sort of text editor. You may only have a weak understanding of some Python, which makes the analysis codework even scarier. This is why it's highly, highly, \textit{highly} recommended to work with others in the lab \textit{and} on the analysis; it's much better to bounce analysis ideas off of each other than it is to let them stew and get muddled in your own head.
 
-Working together on lab analysis can be cumbersome, if you do it wrongly. When we first started working together in Intermediate Lab II, we wrote the analysis code together using Google Drive and a single executable Python script. It was a nightmare: we were going back and forth, commenting out plot commands for plots that we didn't want and doing our best to convince the Drive server to sync. We failed on both counts.
+Working together on lab analysis can be cumbersome, if you do it naively. When we first started working together in Intermediate Lab II, we wrote the analysis code together using Google Drive and a single executable Python script. It was a nightmare: we were going back and forth, commenting out plot commands for plots that we didn't want and doing our best to convince the Drive server to sync. We failed on both counts.
 
 For our second lab we wanted to resolve these issues: 1) make it easier to work on code together and 2) make some sort of project manager which handles all of the plot and print commands. We used \href{https://github.com/}{GitHub} to solve the first problem -- though I imagine any good version control software that is \textit{not} Google Drive (or its ilk) would solve that issue. The solution to the second problem was DataMaster.
 
@@ -129,12 +129,10 @@ The first line is just a comment indicating that the above lines are in ``\_\_in
 
 These ``\textbf{lab.py}'' and ``\textbf{\_\_init\_\_.py}'' files are the only files that you need to include in the directories corresponding to different labs for DataMaster to work. The ``\textbf{\_\_init\_\_.py}'' will be the same for every lab, while the ``\textbf{lab.py}'' will contain the lab analysis code from which specific commands can be called as detailed in the next section.
 
-% This section will just have the general usage instructions
 \addcontentsline{toc}{section}{Usage}
 \section*{Usage}
 \label{sec:usage}
 
-% there should be a section here about the contents of the lab document i.e. talking about ``get'' and ``plot'' functions
 The ``\textbf{lab.py}'' document is the heart and soul of your lab analysis. The whole point of DataMaster is to allow you to focus on the analysis itself and not the display overhead. When you load a lab, DataMaster searches for two sets of functions:
 \begin{framed}
   \centering
@@ -144,7 +142,8 @@ The ``\textbf{lab.py}'' document is the heart and soul of your lab analysis. The
     \begin{tabular}{ c | m{0.48\textwidth}}
       Function Name & Description\\\hline
       \texttt{get\_something()} & Tells DataMaster that this function returns a value that will be displayed in the terminal \\
-      \texttt{plot\_something()} & Tells DataMaster that inside of this function is a plot -- using Matplotlib -- that you want to generate
+      \texttt{plot\_something()} & Tells DataMaster that inside of this function is a plot -- using Matplotlib -- that you want to generate \\
+      \texttt{run\_something()} & Tells DataMaster that this function is \texttt{void} returned function; useful for preparing large chunks of data in memory
     \end{tabular}
   }
 \end{framed}
@@ -161,11 +160,42 @@ The code structure for these functions should follow this setup:
       
       fig, ax = plt.subplots()
       # Code for the stuff you with to plot
+    
+    def run_runnable():
+      # Code for this function (without a return statement)
+            
   \end{lstlisting}
 \end{framed}
-As shown, all ``\texttt{get\_}'' functions have a \texttt{return} value. ``\texttt{plot\_}'' functions have some sort of figure setup -- with ``\texttt{plt.figure()}'' or ``\texttt{plt.subplots()}'' -- but they do not have ``\texttt{plt.show()}.'' DataMaster handles that for you.
+As shown, all ``\texttt{get\_}'' functions have a \texttt{return} value. ``\texttt{plot\_}'' functions have some sort of figure setup -- with ``\texttt{plt.figure()}'' or ``\texttt{plt.subplots()}'' -- but they do not have ``\texttt{plt.show()}.'' DataMaster handles that for you. 
 
-You can access these functions in DataMaster itself using the ``\texttt{-g value}'' and ``\texttt{-p thing}'' commands, which are explained below.
+The ``\texttt{run\_}'' functions have \textbf{no} return value as they fall under a class of functions called ``runnables.'' If you know a bit of Java, you'll know that these are actually multithreaded processes, i.e. they do not run at the same time as the calling script and use a separate chunk of CPU. \textit{This is not the case for these functions!} DataMaster, for the time being, is a synchronous script with no built-in threading support. For larger projects, it may be useful to take advantage of asynchronous development, but for most data crunching the synchronous architecture is preferred. The ``\texttt{run\_}'' functions, in this case, act like ``fire and forget'' functions; for example, say you're performing some signal processing and have 100 terms in your Fourier series. Instead of building each term over and over, you could build them all and store them in memory with a ``\texttt{run\_}'' function.
+
+You can access these functions in DataMaster itself using the ``\texttt{-g value},'' ``\texttt{-p thing},'' and ``\texttt{-x function}'' commands, which are explained below.
+
+For advanced usage, there also exists a ``\texttt{terminate()}'' function which acts like a destructor function in languages like C++. Once a lab is called to reload, if ``\texttt{terminate()}'' is declared in the lab analysis document, it will be run before the lab reference is reloaded. For example, say there is a large cache dictionary called, conveniently, ``\texttt{CACHE}'' which should be cleared upon reload. If you have an object like this, it \textbf{must} be properly dereferenced otherwise there may be memory leaks!
+\begin{framed}
+  \begin{lstlisting}[language=Python]
+   # Empty cache dictionary which gets filled over time
+   CACHE = {}
+   
+   # Properly dereferences any object in a cache tree so that the garbage collector can free memory
+   def purge_tree(d):
+     for k, v in d.items():
+        if isinstance(d[k], dict):
+            purge_tree(d[k])
+        else:
+            d[k] = None
+            
+   # Terminate command called by DataMaster itself
+   def terminate():
+     
+     # Since CACHE is a global variable in this context, the global keyword must be used to specify that we're modifying the global
+     global CACHE 
+     purge_tree(CACHE)
+     CACHE = None
+  \end{lstlisting}
+\end{framed}
+After marking each reference in the cache tree as ``\texttt{None},'' Python treats the references as memory that's ready to be freed. While the lab reloads with ``\texttt{-r}'' DataMaster calls the garbage collector to run just before the lab is reread from file. If you have a project which manipulates lots of data, it's \textit{highly} recommended to take advantage of this ``\texttt{terminate()}'' function.
 
 \addcontentsline{toc}{subsection}{Commands}
 \subsection*{Commands}
@@ -199,8 +229,9 @@ These are the commands available in DataMaster:
       \textbf{-l}, \textbf{{-}-list} & -l & Prints out all the available labs in the current working directory. Furthermore, if a lab is selected, it will also print out all the available ``get'' and ``plot'' functions in the selected lab as well as indicate which lab is selected.\\
       \textbf{-s}, \textbf{{-}-select} & -s argument & Selects the lab with name ``\texttt{argument}'' you wish to work with \\
       \textbf{-r}, \textbf{{-}-reload} & -r & Reloads the currently selected lab \\
-      \textbf{-p}, \textbf{{-}-plot} & -p argument & Displays a plot named ``\texttt{argument}''\\
       \textbf{-g}, \textbf{{-}-get} & -g argument & Prints something in the terminal with the name ``\texttt{argument}'' \\
+      \textbf{-p}, \textbf{{-}-plot} & -p argument & Displays a plot named ``\texttt{argument}''\\
+      \textbf{-x}, \textbf{{-}-run} & -x argument & Runs a custom function named ``\texttt{argument}'' \\
       \textbf{-e}, \textbf{{-}-exit} & -e & Exits the command-line interface \\
     \end{tabular}
   }
@@ -343,18 +374,20 @@ After a couple seconds or so when you hit enter, a ``less-than'' symbol (\texttt
 \begin{framed}
   \begin{lstlisting}
     > -h
-    DataMaster version 1.0.0
+    DataMaster version 1.1.0
     Usage: datamaster.py -s <name> [-g, -p] <data name>
-
+    
     Commands:
       -h, --help: Prints out this help section
       -l, --list: Lists all the available labs and, if a lab is selected, all available gets and plots
       -s, --select <name>: Selects lab to compute data from
       -r, --reload: Reloads the selected lab from file
-      -p, --plot <variable>: Calls a plotting function of form "plot_<variable>"
-      -g, --get <variable>: Prints out a value from function of form "get_<variable>"
+      -p, --plot <variable>: Calls a plotting function of the form "plot_<variable>"
+      -g, --get <variable>: Prints out a value from function of the form "get_<variable>"
+      -x, --run <variable>: Runs a custom function of the form "run_<variable>"
       -e, --exit: Explicit command to exit from DataMaster CLI
     > 
+
   \end{lstlisting}
 \end{framed}
 We want to check to see if the example lab that we've been working is available to be used in DataMaster. For this, we should list all the available labs with ``\texttt{-l}'' which will print out something like this:
