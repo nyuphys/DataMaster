@@ -133,6 +133,11 @@ These ``\textbf{lab.py}'' and ``\textbf{\_\_init\_\_.py}'' files are the only fi
 \section*{Usage}
 \label{sec:usage}
 
+DataMaster itself is a script that handles your data output with a console environment, but there are necessary structures that you need to have in your code that make it readable for DataMaster. For this reason, there are two ``levels'' of access to the DataMaster platform: the code structure and the commands in the terminal environment.
+
+\addcontentsline{toc}{subsection}{Code Structure}
+\subsection*{Code Structure}
+\label{subsec:codestruct}
 The ``\textbf{lab.py}'' document is the heart and soul of your lab analysis. The whole point of DataMaster is to allow you to focus on the analysis itself and not the display overhead. When you load a lab, DataMaster searches for two sets of functions:
 \begin{framed}
   \centering
@@ -143,7 +148,7 @@ The ``\textbf{lab.py}'' document is the heart and soul of your lab analysis. The
       Function Name & Description\\\hline
       \texttt{get\_something()} & Tells DataMaster that this function returns a value that will be displayed in the terminal \\
       \texttt{plot\_something()} & Tells DataMaster that inside of this function is a plot -- using Matplotlib -- that you want to generate \\
-      \texttt{run\_something()} & Tells DataMaster that this function is \texttt{void} returned function; useful for preparing large chunks of data in memory
+      \texttt{run\_something()} & Tells DataMaster that this function is a \texttt{void} returned function; useful for preparing large chunks of data in memory
     \end{tabular}
   }
 \end{framed}
